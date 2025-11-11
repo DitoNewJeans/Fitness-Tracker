@@ -64,8 +64,13 @@ class FirebaseWorkoutViewModel(
     private fun loadUserWorkouts() {
         val userId = authService.currentUser?.uid ?: return
         viewModelScope.launch {
-            firestoreRepository.getWorkoutSessionsByUser(userId).collect { sessions ->
-                _workoutSessions.value = sessions
+            try {
+                firestoreRepository.getWorkoutSessionsByUser(userId).collect { sessions ->
+                    _workoutSessions.value = sessions
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _workoutSessions.value = emptyList()
             }
         }
     }
@@ -73,23 +78,39 @@ class FirebaseWorkoutViewModel(
     private fun loadUserStats() {
         val userId = authService.currentUser?.uid ?: return
         viewModelScope.launch {
-            // Load total sessions
-            firestoreRepository.getTotalSessionsByUser(userId).fold(
-                onSuccess = { count -> _totalSessions.value = count },
-                onFailure = { _totalSessions.value = 0 }
-            )
+            try {
+                // Load total sessions
+                firestoreRepository.getTotalSessionsByUser(userId).fold(
+                    onSuccess = { count -> _totalSessions.value = count },
+                    onFailure = { e ->
+                        e.printStackTrace()
+                        _totalSessions.value = 0
+                    }
+                )
 
-            // Load total reps
-            firestoreRepository.getTotalRepsByUser(userId).fold(
-                onSuccess = { count -> _totalReps.value = count },
-                onFailure = { _totalReps.value = 0 }
-            )
+                // Load total reps
+                firestoreRepository.getTotalRepsByUser(userId).fold(
+                    onSuccess = { count -> _totalReps.value = count },
+                    onFailure = { e ->
+                        e.printStackTrace()
+                        _totalReps.value = 0
+                    }
+                )
 
-            // Load average form score
-            firestoreRepository.getAverageFormScoreByUser(userId).fold(
-                onSuccess = { score -> _averageFormScore.value = score },
-                onFailure = { _averageFormScore.value = 0f }
-            )
+                // Load average form score
+                firestoreRepository.getAverageFormScoreByUser(userId).fold(
+                    onSuccess = { score -> _averageFormScore.value = score },
+                    onFailure = { e ->
+                        e.printStackTrace()
+                        _averageFormScore.value = 0f
+                    }
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _totalSessions.value = 0
+                _totalReps.value = 0
+                _averageFormScore.value = 0f
+            }
         }
     }
 

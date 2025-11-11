@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.example.fitnesstracker.dataStore
 import com.example.fitnesstracker.data.AppDatabase
 import com.example.fitnesstracker.navigation.NavRoutes
 import kotlinx.coroutines.flow.map
@@ -26,17 +27,27 @@ fun HomeScreen(navController: NavController) {
         exitProcess(0)
     }
     
-    // Get real stats from database for CURRENT USER only
     val context = LocalContext.current
+    
+    // Check if user is logged in - if not, redirect to Welcome
+    LaunchedEffect(Unit) {
+        val isLoggedIn = com.example.fitnesstracker.util.UserSessionManager.isUserLoggedIn()
+        if (!isLoggedIn) {
+            navController.navigate(NavRoutes.Welcome.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+    
+    // Get real stats from database for CURRENT USER only
     val database = AppDatabase.getDatabase(context)
     
-    // Get current user ID
-    val userId by remember {
-        kotlinx.coroutines.flow.flow {
-            val firebaseUid = com.example.fitnesstracker.util.UserSessionManager.getCurrentUserId(context.dataStore)
-            emit(com.example.fitnesstracker.util.UserSessionManager.getUserIdAsLong(firebaseUid))
-        }
-    }.collectAsStateWithLifecycle(initialValue = null)
+    // Get current user ID - Firebase Auth automatically restores session on app start
+    // Firebase Auth is synchronous, so this should be available immediately
+    val firebaseUid = remember { com.example.fitnesstracker.util.UserSessionManager.getCurrentFirebaseUserId() }
+    val userId = remember(firebaseUid) { 
+        com.example.fitnesstracker.util.UserSessionManager.getUserIdAsLong(firebaseUid)
+    }
     
     // Filter stats by current user
     val workoutCount by remember(userId) {

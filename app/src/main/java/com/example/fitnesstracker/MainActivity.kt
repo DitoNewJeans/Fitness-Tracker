@@ -30,13 +30,6 @@ class MainActivity : ComponentActivity() {
         val authService = FirebaseAuthService()
         val firestoreRepository = FirestoreRepository()
         
-        // Determine start destination based on login status
-        val startDestination = if (authService.isUserLoggedIn) {
-            NavRoutes.Home.route
-        } else {
-            NavRoutes.Welcome.route
-        }
-        
         setContent {
             FitnessTrackerTheme {
                 Surface(
@@ -44,6 +37,15 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
+                    
+                    // Firebase Auth automatically restores user session
+                    // Check if user is logged in to determine start destination
+                    val startDestination = if (authService.isUserLoggedIn) {
+                        NavRoutes.Home.route
+                    } else {
+                        NavRoutes.Welcome.route
+                    }
+                    
                     NavGraph(
                         navController = navController,
                         startDestination = startDestination,

@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.example.fitnesstracker.dataStore
 import com.example.fitnesstracker.data.AppDatabase
 import com.example.fitnesstracker.data.WorkoutSession
 import com.example.fitnesstracker.navigation.NavRoutes

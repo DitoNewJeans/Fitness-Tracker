@@ -59,13 +59,33 @@ class FirebaseAuthViewModel(
 
     private fun checkLoginStatus() {
         viewModelScope.launch {
-            val user = authService.currentUser
-            if (user != null) {
-                _currentUser.value = user
-                _isLoggedIn.value = true
-                
-                // Update last login in Firestore
-                firestoreRepository.updateLastLogin(user.uid)
+            try {
+                // Firebase Auth automatically persists the user session
+                // So currentUser should be available immediately if user was logged in
+                val user = authService.currentUser
+                if (user != null) {
+                    _currentUser.value = user
+                    _isLoggedIn.value = true
+                    
+                    // Ensure user data is saved to DataStore for UserSessionManager compatibility
+                    dataStore.edit { preferences ->
+                        preferences[USER_ID_KEY] = user.uid
+                        preferences[USER_NAME_KEY] = user.displayName ?: ""
+                        preferences[USER_EMAIL_KEY] = user.email ?: ""
+                    }
+                    
+                    // Update last login in Firestore (non-blocking)
+                    firestoreRepository.updateLastLogin(user.uid)
+                } else {
+                    // No user in Firebase Auth, clear DataStore as well
+                    _currentUser.value = null
+                    _isLoggedIn.value = false
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // On error, assume not logged in
+                _currentUser.value = null
+                _isLoggedIn.value = false
             }
         }
     }

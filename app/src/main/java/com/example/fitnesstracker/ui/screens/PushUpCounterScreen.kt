@@ -349,6 +349,8 @@ private fun PushUpCounterContent(navController: NavController, viewModel: Workou
                     Button(
                         onClick = {
                             showFinishDialog = false
+                            // Update ViewModel with current rep counts before stopping
+                            viewModel.updateReps(totalReps = reps, goodReps = goodFormReps)
                             viewModel.stopWorkout()
                             navController.navigate(NavRoutes.SessionSummary.route) {
                                 popUpTo(NavRoutes.Home.route)

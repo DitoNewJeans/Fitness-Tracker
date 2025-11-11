@@ -127,29 +127,71 @@ class WorkoutViewModel(
         }
         
         viewModelScope.launch {
-            // Get current user ID
-            val firebaseUid = UserSessionManager.getCurrentUserId(dataStore)
-            val userId = UserSessionManager.getUserIdAsLong(firebaseUid)
-            
-            val session = WorkoutSession(
-                userId = userId, // ✅ CRITICAL: Associate workout with current user
-                workoutType = _selectedWorkoutType.value ?: "Push-Ups",
-                date = Date(),
-                totalReps = reps,
-                avgTempo = if (reps > 0) duration.toFloat() / (reps * 1000) else 0f,
-                formScore = goodFormPercentage,
-                goalReps = _goalReps.value,
-                duration = duration,
-                feedbackType = _feedbackType.value,
-                // Save quality metrics
-                avgElbowAngle = _avgElbowAngle.value,
-                avgHipAngle = _avgHipAngle.value,
-                goodFormPercentage = goodFormPercentage,
-                notes = "Good form reps: $goodReps/$reps"
-            )
-            
-            _currentSession.value = session
-            dao.insertSession(session)
+            try {
+                // Get current user ID
+                val firebaseUid = UserSessionManager.getCurrentUserId(dataStore)
+                val userId = UserSessionManager.getUserIdAsLong(firebaseUid)
+                
+                // Only save if we have a valid user ID
+                if (userId != null) {
+                    val session = WorkoutSession(
+                        userId = userId, // ✅ CRITICAL: Associate workout with current user
+                        workoutType = _selectedWorkoutType.value ?: "Push-Ups",
+                        date = Date(),
+                        totalReps = reps,
+                        avgTempo = if (reps > 0) duration.toFloat() / (reps * 1000) else 0f,
+                        formScore = goodFormPercentage,
+                        goalReps = _goalReps.value,
+                        duration = duration,
+                        feedbackType = _feedbackType.value,
+                        // Save quality metrics
+                        avgElbowAngle = _avgElbowAngle.value,
+                        avgHipAngle = _avgHipAngle.value,
+                        goodFormPercentage = goodFormPercentage,
+                        notes = "Good form reps: $goodReps/$reps"
+                    )
+                    
+                    _currentSession.value = session
+                    dao.insertSession(session)
+                } else {
+                    // Create session without saving to DB (for display purposes)
+                    val session = WorkoutSession(
+                        userId = 0L, // Placeholder user ID
+                        workoutType = _selectedWorkoutType.value ?: "Push-Ups",
+                        date = Date(),
+                        totalReps = reps,
+                        avgTempo = if (reps > 0) duration.toFloat() / (reps * 1000) else 0f,
+                        formScore = goodFormPercentage,
+                        goalReps = _goalReps.value,
+                        duration = duration,
+                        feedbackType = _feedbackType.value,
+                        avgElbowAngle = _avgElbowAngle.value,
+                        avgHipAngle = _avgHipAngle.value,
+                        goodFormPercentage = goodFormPercentage,
+                        notes = "Good form reps: $goodReps/$reps"
+                    )
+                    _currentSession.value = session
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Even if saving fails, create a session for display
+                val session = WorkoutSession(
+                    userId = 0L,
+                    workoutType = _selectedWorkoutType.value ?: "Push-Ups",
+                    date = Date(),
+                    totalReps = reps,
+                    avgTempo = if (reps > 0) duration.toFloat() / (reps * 1000) else 0f,
+                    formScore = goodFormPercentage,
+                    goalReps = _goalReps.value,
+                    duration = duration,
+                    feedbackType = _feedbackType.value,
+                    avgElbowAngle = _avgElbowAngle.value,
+                    avgHipAngle = _avgHipAngle.value,
+                    goodFormPercentage = goodFormPercentage,
+                    notes = "Good form reps: $goodReps/$reps"
+                )
+                _currentSession.value = session
+            }
         }
     }
 

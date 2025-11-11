@@ -77,16 +77,32 @@ fun NavGraph(
         }
         composable(NavRoutes.PushUpCounter.route) {
             // CRITICAL: Scope to Home.route to share ViewModel with SessionSummary
+            // Try to get Home back stack entry, fallback to current entry if not available
             val workoutViewModel: WorkoutViewModel = viewModel(
-                viewModelStoreOwner = remember { navController.getBackStackEntry(NavRoutes.Home.route) },
+                viewModelStoreOwner = remember { 
+                    try {
+                        navController.getBackStackEntry(NavRoutes.Home.route)
+                    } catch (e: IllegalArgumentException) {
+                        // Fallback: if Home is not in back stack, use current entry
+                        navController.currentBackStackEntry!!
+                    }
+                },
                 factory = workoutViewModelFactory
             )
             PushUpCounterScreen(navController = navController, viewModel = workoutViewModel)
         }
         composable(NavRoutes.SessionSummary.route) {
             // CRITICAL: Scope to Home.route to get SAME ViewModel instance
+            // Try to get Home back stack entry, fallback to current entry if not available
             val workoutViewModel: WorkoutViewModel = viewModel(
-                viewModelStoreOwner = remember { navController.getBackStackEntry(NavRoutes.Home.route) },
+                viewModelStoreOwner = remember { 
+                    try {
+                        navController.getBackStackEntry(NavRoutes.Home.route)
+                    } catch (e: IllegalArgumentException) {
+                        // Fallback: if Home is not in back stack, use current entry
+                        navController.currentBackStackEntry!!
+                    }
+                },
                 factory = workoutViewModelFactory
             )
             SessionSummaryScreen(navController = navController, viewModel = workoutViewModel)
