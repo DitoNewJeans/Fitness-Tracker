@@ -29,8 +29,22 @@ class WorkoutViewModel(private val dao: WorkoutSessionDao) : ViewModel() {
     private val _repCount = MutableStateFlow(0)
     val repCount: StateFlow<Int> = _repCount.asStateFlow()
 
+    // NEW: Quality tracking
+    private val _goodFormReps = MutableStateFlow(0)
+    val goodFormReps: StateFlow<Int> = _goodFormReps.asStateFlow()
+
     private val _formScore = MutableStateFlow(85f)
     val formScore: StateFlow<Float> = _formScore.asStateFlow()
+
+    // NEW: Angle tracking for averages
+    private val _avgElbowAngle = MutableStateFlow(0f)
+    val avgElbowAngle: StateFlow<Float> = _avgElbowAngle.asStateFlow()
+
+    private val _avgHipAngle = MutableStateFlow(0f)
+    val avgHipAngle: StateFlow<Float> = _avgHipAngle.asStateFlow()
+
+    private val _elbowAngles = mutableListOf<Int>()
+    private val _hipAngles = mutableListOf<Int>()
 
     private val _isWorkoutActive = MutableStateFlow(false)
     val isWorkoutActive: StateFlow<Boolean> = _isWorkoutActive.asStateFlow()
@@ -58,10 +72,34 @@ class WorkoutViewModel(private val dao: WorkoutSessionDao) : ViewModel() {
         _isWorkoutActive.value = true
         _workoutStartTime.value = System.currentTimeMillis()
         _repCount.value = 0
+        _goodFormReps.value = 0
+        _elbowAngles.clear()
+        _hipAngles.clear()
+        _avgElbowAngle.value = 0f
+        _avgHipAngle.value = 0f
     }
 
     fun incrementRep() {
         _repCount.value = _repCount.value + 1
+    }
+
+    // NEW: Update both total and good form reps
+    fun updateReps(totalReps: Int, goodReps: Int) {
+        _repCount.value = totalReps
+        _goodFormReps.value = goodReps
+    }
+
+    // NEW: Track angles for averaging
+    fun updateAngles(elbowAngle: Int, hipAngle: Int) {
+        _elbowAngles.add(elbowAngle)
+        _hipAngles.add(hipAngle)
+
+        if (_elbowAngles.isNotEmpty()) {
+            _avgElbowAngle.value = _elbowAngles.average().toFloat()
+        }
+        if (_hipAngles.isNotEmpty()) {
+            _avgHipAngle.value = _hipAngles.average().toFloat()
+        }
     }
 
     fun updateFormScore(score: Float) {
@@ -73,16 +111,29 @@ class WorkoutViewModel(private val dao: WorkoutSessionDao) : ViewModel() {
         val startTime = _workoutStartTime.value ?: System.currentTimeMillis()
         val duration = System.currentTimeMillis() - startTime
         val reps = _repCount.value
+        val goodReps = _goodFormReps.value
+        
+        // Calculate quality percentage
+        val goodFormPercentage = if (reps > 0) {
+            (goodReps.toFloat() / reps) * 100
+        } else {
+            0f
+        }
         
         val session = WorkoutSession(
             workoutType = _selectedWorkoutType.value ?: "Push-Ups",
             date = Date(),
             totalReps = reps,
             avgTempo = if (reps > 0) duration.toFloat() / (reps * 1000) else 0f,
-            formScore = _formScore.value,
+            formScore = goodFormPercentage,
             goalReps = _goalReps.value,
             duration = duration,
-            feedbackType = _feedbackType.value
+            feedbackType = _feedbackType.value,
+            // NEW: Save quality metrics
+            avgElbowAngle = _avgElbowAngle.value,
+            avgHipAngle = _avgHipAngle.value,
+            goodFormPercentage = goodFormPercentage,
+            notes = "Good form reps: $goodReps/$reps"
         )
         
         _currentSession.value = session
@@ -98,10 +149,15 @@ class WorkoutViewModel(private val dao: WorkoutSessionDao) : ViewModel() {
         _feedbackType.value = "Both"
         _tempo.value = 2.0f
         _repCount.value = 0
+        _goodFormReps.value = 0
         _formScore.value = 85f
         _isWorkoutActive.value = false
         _workoutStartTime.value = null
         _currentSession.value = null
+        _elbowAngles.clear()
+        _hipAngles.clear()
+        _avgElbowAngle.value = 0f
+        _avgHipAngle.value = 0f
     }
 }
 

@@ -7,13 +7,25 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.fitnesstracker.data.AppDatabase
 import com.example.fitnesstracker.navigation.NavRoutes
+import com.example.fitnesstracker.viewmodel.ViewModelFactory
+import com.example.fitnesstracker.viewmodel.WorkoutViewModel
+import com.example.fitnesstracker.dataStore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomizeSessionScreen(navController: NavController) {
+    val context = LocalContext.current
+    val database = AppDatabase.getDatabase(context)
+    val workoutViewModel: WorkoutViewModel = viewModel(
+        factory = ViewModelFactory(database.workoutSessionDao(), context.dataStore)
+    )
+    
     var goalReps by remember { mutableStateOf(10) }
     var feedbackType by remember { mutableStateOf("Both") }
     var tempo by remember { mutableStateOf(2.0f) }
@@ -71,7 +83,14 @@ fun CustomizeSessionScreen(navController: NavController) {
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
-                onClick = { navController.navigate(NavRoutes.Countdown.route) },
+                onClick = {
+                    // Save settings to ViewModel
+                    workoutViewModel.setGoalReps(goalReps)
+                    workoutViewModel.setFeedbackType(feedbackType)
+                    workoutViewModel.setTempo(tempo)
+                    
+                    navController.navigate(NavRoutes.Countdown.route)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)

@@ -1,17 +1,22 @@
 package com.example.fitnesstracker.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.example.fitnesstracker.data.AppDatabase
 import com.example.fitnesstracker.data.firebase.FirebaseAuthService
 import com.example.fitnesstracker.data.firebase.FirestoreRepository
 import com.example.fitnesstracker.ui.screens.*
 import com.example.fitnesstracker.viewmodel.FirebaseAuthViewModel
 import com.example.fitnesstracker.viewmodel.FirebaseViewModelFactory
+import com.example.fitnesstracker.viewmodel.ViewModelFactory
+import com.example.fitnesstracker.viewmodel.WorkoutViewModel
 
 @Composable
 fun NavGraph(
@@ -21,7 +26,11 @@ fun NavGraph(
     firestoreRepository: FirestoreRepository,
     dataStore: DataStore<Preferences>
 ) {
-    val viewModelFactory = FirebaseViewModelFactory(authService, firestoreRepository, dataStore)
+    val context = LocalContext.current
+    val database = AppDatabase.getDatabase(context)
+    
+    val firebaseViewModelFactory = FirebaseViewModelFactory(authService, firestoreRepository, dataStore)
+    val workoutViewModelFactory = ViewModelFactory(database.workoutSessionDao(), dataStore)
     
     NavHost(
         navController = navController,
@@ -32,13 +41,13 @@ fun NavGraph(
         }
         composable(NavRoutes.Login.route) {
             val authViewModel: FirebaseAuthViewModel = viewModel(
-                factory = viewModelFactory
+                factory = firebaseViewModelFactory
             )
             LoginScreen(navController = navController, authViewModel = authViewModel)
         }
         composable(NavRoutes.CreateAccount.route) {
             val authViewModel: FirebaseAuthViewModel = viewModel(
-                factory = viewModelFactory
+                factory = firebaseViewModelFactory
             )
             CreateAccountScreen(navController = navController, authViewModel = authViewModel)
         }
@@ -66,14 +75,24 @@ fun NavGraph(
         composable(NavRoutes.WorkoutSession.route) {
             WorkoutSessionScreen(navController = navController)
         }
+        composable(NavRoutes.PushUpCounter.route) {
+            // CRITICAL: Scope to Home.route to share ViewModel with SessionSummary
+            val workoutViewModel: WorkoutViewModel = viewModel(
+                viewModelStoreOwner = remember { navController.getBackStackEntry(NavRoutes.Home.route) },
+                factory = workoutViewModelFactory
+            )
+            PushUpCounterScreen(navController = navController, viewModel = workoutViewModel)
+        }
         composable(NavRoutes.SessionSummary.route) {
-            SessionSummaryScreen(navController = navController)
+            // CRITICAL: Scope to Home.route to get SAME ViewModel instance
+            val workoutViewModel: WorkoutViewModel = viewModel(
+                viewModelStoreOwner = remember { navController.getBackStackEntry(NavRoutes.Home.route) },
+                factory = workoutViewModelFactory
+            )
+            SessionSummaryScreen(navController = navController, viewModel = workoutViewModel)
         }
         composable(NavRoutes.History.route) {
-            HistoryScreen(
-                navController = navController,
-                viewModelFactory = viewModelFactory
-            )
+            HistoryScreen(navController = navController)
         }
         composable("${NavRoutes.SessionDetails.route}/{sessionId}") { backStackEntry ->
             val sessionId = backStackEntry.arguments?.getString("sessionId")?.toLongOrNull()
@@ -84,18 +103,18 @@ fun NavGraph(
         }
         composable(NavRoutes.Settings.route) {
             val authViewModel: FirebaseAuthViewModel = viewModel(
-                factory = viewModelFactory
+                factory = firebaseViewModelFactory
             )
             SettingsScreen(navController = navController, authViewModel = authViewModel)
         }
         composable(NavRoutes.Profile.route) {
             val authViewModel: FirebaseAuthViewModel = viewModel(
-                factory = viewModelFactory
+                factory = firebaseViewModelFactory
             )
             ProfileScreen(
                 navController = navController,
                 authViewModel = authViewModel,
-                viewModelFactory = viewModelFactory
+                viewModelFactory = firebaseViewModelFactory
             )
         }
         composable(NavRoutes.AppPreferences.route) {
@@ -106,9 +125,6 @@ fun NavGraph(
         }
         composable(NavRoutes.PairWatch.route) {
             PairWatchScreen(navController = navController)
-        }
-        composable(NavRoutes.PushUpCounter.route) {
-            PushUpCounterScreen(navController = navController)
         }
     }
 }

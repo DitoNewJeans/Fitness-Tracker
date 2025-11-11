@@ -24,8 +24,8 @@ fun CountdownScreen(navController: NavController) {
             countdown--
         }
         delay(500)
-        navController.navigate(NavRoutes.WorkoutSession.route) {
-            popUpTo(NavRoutes.Home.route) { inclusive = false }
+        navController.navigate(NavRoutes.PushUpCounter.route) {
+            popUpTo(NavRoutes.Home.route)
         }
     }
 

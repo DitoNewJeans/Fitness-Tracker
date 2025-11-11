@@ -9,10 +9,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.example.fitnesstracker.data.AppDatabase
 import com.example.fitnesstracker.navigation.NavRoutes
+import kotlinx.coroutines.flow.map
 import kotlin.system.exitProcess
 
 @Composable
@@ -21,6 +25,27 @@ fun HomeScreen(navController: NavController) {
     BackHandler {
         exitProcess(0)
     }
+    
+    // Get real stats from database
+    val context = LocalContext.current
+    val database = AppDatabase.getDatabase(context)
+    
+    val workoutCount by remember {
+        database.workoutSessionDao().getAllSessions().map { it.size }
+    }.collectAsStateWithLifecycle(initialValue = 0)
+    
+    val totalReps by remember {
+        database.workoutSessionDao().getAllSessions().map { sessions ->
+            sessions.sumOf { it.totalReps }
+        }
+    }.collectAsStateWithLifecycle(initialValue = 0)
+    
+    val avgFormScore by remember {
+        database.workoutSessionDao().getAllSessions().map { sessions ->
+            if (sessions.isEmpty()) 0f
+            else sessions.map { it.goodFormPercentage ?: it.formScore }.average().toFloat()
+        }
+    }.collectAsStateWithLifecycle(initialValue = 0f)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -48,7 +73,7 @@ fun HomeScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Quick Stats Card (Placeholder)
+        // Quick Stats Card (Real data from database)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
@@ -60,21 +85,21 @@ fun HomeScreen(navController: NavController) {
                     .padding(20.dp),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                StatItem("0", "Workouts")
+                StatItem(workoutCount.toString(), "Workouts")
                 Divider(
                     modifier = Modifier
                         .height(40.dp)
                         .width(1.dp),
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
                 )
-                StatItem("0", "Reps")
+                StatItem(totalReps.toString(), "Reps")
                 Divider(
                     modifier = Modifier
                         .height(40.dp)
                         .width(1.dp),
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
                 )
-                StatItem("0%", "Form")
+                StatItem("${avgFormScore.toInt()}%", "Form")
             }
         }
 

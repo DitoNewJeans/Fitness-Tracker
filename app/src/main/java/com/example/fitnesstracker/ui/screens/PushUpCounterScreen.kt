@@ -35,13 +35,29 @@ import kotlinx.coroutines.asExecutor
 import com.example.fitnesstracker.domain.PoseRepCounter
 import com.example.fitnesstracker.domain.PoseRepCounter.Companion.P
 import com.example.fitnesstracker.domain.PoseRepCounter.Companion.calculateAngleDeg
+import com.example.fitnesstracker.domain.RepQuality
+import com.example.fitnesstracker.viewmodel.WorkoutViewModel
+import com.example.fitnesstracker.navigation.NavRoutes
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun PushUpCounterScreen(navController: NavController) {
+fun PushUpCounterScreen(navController: NavController, viewModel: WorkoutViewModel) {
     val cameraPermission = rememberPermissionState(android.Manifest.permission.CAMERA)
+    
     LaunchedEffect(Unit) {
-        if (!cameraPermission.status.isGranted) cameraPermission.launchPermissionRequest()
+        if (!cameraPermission.status.isGranted) {
+            cameraPermission.launchPermissionRequest()
+        } else {
+            // Start workout when screen loads
+            viewModel.selectWorkoutType("Push-Ups")
+            viewModel.startWorkout()
+        }
     }
 
     if (!cameraPermission.status.isGranted) {
@@ -57,24 +73,27 @@ fun PushUpCounterScreen(navController: NavController) {
         return
     }
 
-    PushUpCounterContent()
+    PushUpCounterContent(navController, viewModel)
 }
 
 @SuppressLint("UnsafeOptInUsageError")
 @Composable
-private fun PushUpCounterContent() {
+private fun PushUpCounterContent(navController: NavController, viewModel: WorkoutViewModel) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var reps by remember { mutableStateOf(0) }
+    var goodFormReps by remember { mutableStateOf(0) }
     var stage by remember { mutableStateOf<String?>(null) }
     var elbowDeg by remember { mutableStateOf(0) }
     var hipDeg by remember { mutableStateOf(0) }
-    var hipOk by remember { mutableStateOf(false) }
+    var formFeedback by remember { mutableStateOf("") }
+    var repQuality by remember { mutableStateOf(RepQuality.ACCEPTABLE) }
     var landmarkPoints by remember { mutableStateOf<Map<Int, Pair<Float, Float>>>(emptyMap()) }
     var imageWidth by remember { mutableStateOf(0) }
     var imageHeight by remember { mutableStateOf(0) }
     var imageRotation by remember { mutableStateOf(0) }
+    var showFinishDialog by remember { mutableStateOf(false) }
 
     // Pose detector
     val options = remember {
@@ -120,9 +139,15 @@ private fun PushUpCounterContent() {
                                 val state = repCounter.update(eDeg, hDeg)
                                 elbowDeg = state.elbowDeg
                                 hipDeg = state.hipDeg
-                                hipOk = state.hipOk
                                 reps = state.reps
+                                goodFormReps = state.goodFormReps
                                 stage = state.stage
+                                formFeedback = state.formFeedback
+                                repQuality = state.repQuality
+                                
+                                // Update ViewModel
+                                viewModel.updateReps(reps, goodFormReps)
+                                viewModel.updateAngles(eDeg, hDeg)
                             },
                             onRep = { _, _ -> },
                             onLandmarks = { lm ->
@@ -137,8 +162,8 @@ private fun PushUpCounterContent() {
                                 // Do not advance counter/state when no person; just zero the display
                                 elbowDeg = 0
                                 hipDeg = 0
-                                hipOk = false
                                 stage = null
+                                formFeedback = ""
                                 landmarkPoints = emptyMap()
                                 imageWidth = 0
                                 imageHeight = 0
@@ -235,37 +260,110 @@ private fun PushUpCounterContent() {
             }
         }
 
+        // Top info panel
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopStart)
                 .padding(16.dp)
         ) {
-            Text(text = "Reps: $reps", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+            Text(
+                text = "Reps: $reps",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = "Good Form: $goodFormReps",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(8.dp))
+            
+            // Quality indicator
+            val qualityIcon = when (repQuality) {
+                RepQuality.EXCELLENT -> "⭐"
+                RepQuality.GOOD -> "✓"
+                RepQuality.ACCEPTABLE -> "~"
+            }
+            val qualityColor = when (repQuality) {
+                RepQuality.EXCELLENT -> androidx.compose.ui.graphics.Color(0xFF00FF6D)
+                RepQuality.GOOD -> androidx.compose.ui.graphics.Color(0xFF00E5FF)
+                RepQuality.ACCEPTABLE -> androidx.compose.ui.graphics.Color(0xFFFFA500)
+            }
+            Text(
+                text = "$qualityIcon ${repQuality.name}",
+                style = MaterialTheme.typography.titleSmall,
+                color = qualityColor
+            )
+            
             Spacer(Modifier.height(8.dp))
             Text(text = "Elbow: ${elbowDeg}°", style = MaterialTheme.typography.bodyLarge)
             Text(text = "Hip: ${hipDeg}°", style = MaterialTheme.typography.bodyLarge)
 
-            // Mirror original script feedback messages
-            val ELBOW_DOWN_MAX = 90
-            val ELBOW_UP_MIN = 160
-
-            if (!hipOk) {
+            // Dynamic form feedback
+            if (formFeedback.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Keep your back straight!",
+                    text = formFeedback,
                     style = MaterialTheme.typography.titleMedium,
-                    color = androidx.compose.ui.graphics.Color(0xFFCC0000)
+                    color = when {
+                        formFeedback.contains("Perfect") -> androidx.compose.ui.graphics.Color(0xFF00FF6D)
+                        formFeedback.contains("Good") -> androidx.compose.ui.graphics.Color(0xFF00E5FF)
+                        else -> androidx.compose.ui.graphics.Color(0xFFFFA500)
+                    }
                 )
             }
-            if (elbowDeg > ELBOW_DOWN_MAX || elbowDeg < ELBOW_UP_MIN) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "Lower further or raise higher for full rep",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = androidx.compose.ui.graphics.Color(0xFFFFA500)
-                )
-            }
+        }
+        
+        // Finish Workout button
+        Button(
+            onClick = { showFinishDialog = true },
+            enabled = reps > 0,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp)
+                .width(200.dp)
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Icon(Icons.Default.Check, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Finish Workout")
+        }
+        
+        // Finish confirmation dialog
+        if (showFinishDialog) {
+            AlertDialog(
+                onDismissRequest = { showFinishDialog = false },
+                title = { Text("Complete Workout?") },
+                text = {
+                    Column {
+                        Text("Total Reps: $reps")
+                        Text("Good Form: $goodFormReps")
+                        Text("Quality: ${if (reps > 0) "${(goodFormReps.toFloat() / reps * 100).toInt()}%" else "0%"}")
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showFinishDialog = false
+                            viewModel.stopWorkout()
+                            navController.navigate(NavRoutes.SessionSummary.route) {
+                                popUpTo(NavRoutes.Home.route)
+                            }
+                        }
+                    ) {
+                        Text("Finish")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showFinishDialog = false }) {
+                        Text("Continue")
+                    }
+                }
+            )
         }
     }
 }
