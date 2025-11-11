@@ -133,7 +133,7 @@ class FirebaseWorkoutViewModel(
         
         val session = FirestoreWorkoutSession(
             userId = userId,
-            exerciseName = _selectedWorkoutType.value ?: "Push-Ups",
+            workoutType = _selectedWorkoutType.value ?: "Push-Ups",
             date = Timestamp.now(),
             totalReps = reps,
             avgTempo = if (reps > 0) duration.toFloat() / (reps * 1000) else 0f,

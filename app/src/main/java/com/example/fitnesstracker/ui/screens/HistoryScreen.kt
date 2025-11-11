@@ -5,7 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,7 +54,7 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Icon(
-                        Icons.Default.FitnessCenter,
+                        Icons.Default.Info,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
@@ -100,7 +100,7 @@ fun HistoryScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = session.exerciseName,
+                                    text = session.workoutType,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant

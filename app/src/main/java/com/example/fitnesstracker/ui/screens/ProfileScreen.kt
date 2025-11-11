@@ -32,7 +32,7 @@ fun ProfileScreen(
     val totalSessions by workoutViewModel.totalSessions.collectAsState()
     val totalReps by workoutViewModel.totalReps.collectAsState()
     val averageFormScore by workoutViewModel.averageFormScore.collectAsState()
-    val currentUser = authViewModel.currentUser
+    val currentUser by authViewModel.currentUser.collectAsState()
 
     Scaffold(
         topBar = {
@@ -83,7 +83,7 @@ fun ProfileScreen(
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        currentUser?.displayName ?: "User Profile",
+                        currentUser?.displayName ?: currentUser?.email?.substringBefore('@') ?: "User Profile",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -122,7 +122,7 @@ fun ProfileScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            Icons.Default.FitnessCenter,
+                            Icons.Default.List,
                             contentDescription = null,
                             modifier = Modifier.size(32.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
