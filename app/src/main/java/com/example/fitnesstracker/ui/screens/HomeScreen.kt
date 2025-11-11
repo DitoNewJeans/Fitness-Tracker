@@ -26,24 +26,45 @@ fun HomeScreen(navController: NavController) {
         exitProcess(0)
     }
     
-    // Get real stats from database
+    // Get real stats from database for CURRENT USER only
     val context = LocalContext.current
     val database = AppDatabase.getDatabase(context)
     
-    val workoutCount by remember {
-        database.workoutSessionDao().getAllSessions().map { it.size }
-    }.collectAsStateWithLifecycle(initialValue = 0)
+    // Get current user ID
+    val userId by remember {
+        kotlinx.coroutines.flow.flow {
+            val firebaseUid = com.example.fitnesstracker.util.UserSessionManager.getCurrentUserId(context.dataStore)
+            emit(com.example.fitnesstracker.util.UserSessionManager.getUserIdAsLong(firebaseUid))
+        }
+    }.collectAsStateWithLifecycle(initialValue = null)
     
-    val totalReps by remember {
-        database.workoutSessionDao().getAllSessions().map { sessions ->
-            sessions.sumOf { it.totalReps }
+    // Filter stats by current user
+    val workoutCount by remember(userId) {
+        if (userId != null) {
+            database.workoutSessionDao().getSessionsByUser(userId!!).map { it.size }
+        } else {
+            kotlinx.coroutines.flow.flowOf(0)
         }
     }.collectAsStateWithLifecycle(initialValue = 0)
     
-    val avgFormScore by remember {
-        database.workoutSessionDao().getAllSessions().map { sessions ->
-            if (sessions.isEmpty()) 0f
-            else sessions.map { it.goodFormPercentage ?: it.formScore }.average().toFloat()
+    val totalReps by remember(userId) {
+        if (userId != null) {
+            database.workoutSessionDao().getSessionsByUser(userId!!).map { sessions ->
+                sessions.sumOf { it.totalReps }
+            }
+        } else {
+            kotlinx.coroutines.flow.flowOf(0)
+        }
+    }.collectAsStateWithLifecycle(initialValue = 0)
+    
+    val avgFormScore by remember(userId) {
+        if (userId != null) {
+            database.workoutSessionDao().getSessionsByUser(userId!!).map { sessions ->
+                if (sessions.isEmpty()) 0f
+                else sessions.map { it.goodFormPercentage ?: it.formScore }.average().toFloat()
+            }
+        } else {
+            kotlinx.coroutines.flow.flowOf(0f)
         }
     }.collectAsStateWithLifecycle(initialValue = 0f)
     Column(

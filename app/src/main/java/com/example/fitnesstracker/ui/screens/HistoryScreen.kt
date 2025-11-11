@@ -28,9 +28,21 @@ fun HistoryScreen(navController: NavController) {
     val context = LocalContext.current
     val database = AppDatabase.getDatabase(context)
     
-    // Get real data from database
-    val sessionsFlow: Flow<List<WorkoutSession>> = remember {
-        database.workoutSessionDao().getAllSessions()
+    // Get current user ID
+    val userId by remember {
+        kotlinx.coroutines.flow.flow {
+            val firebaseUid = com.example.fitnesstracker.util.UserSessionManager.getCurrentUserId(context.dataStore)
+            emit(com.example.fitnesstracker.util.UserSessionManager.getUserIdAsLong(firebaseUid))
+        }
+    }.collectAsStateWithLifecycle(initialValue = null)
+    
+    // Get workout sessions for CURRENT USER only
+    val sessionsFlow: Flow<List<WorkoutSession>> = remember(userId) {
+        if (userId != null) {
+            database.workoutSessionDao().getSessionsByUser(userId!!)
+        } else {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        }
     }
     val sessions by sessionsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
 

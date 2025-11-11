@@ -17,7 +17,7 @@ class ViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WorkoutViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return WorkoutViewModel(workoutSessionDao) as T
+            return WorkoutViewModel(workoutSessionDao, dataStore) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

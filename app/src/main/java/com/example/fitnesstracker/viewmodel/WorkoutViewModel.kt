@@ -1,16 +1,22 @@
 package com.example.fitnesstracker.viewmodel
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitnesstracker.data.WorkoutSession
 import com.example.fitnesstracker.data.WorkoutSessionDao
+import com.example.fitnesstracker.util.UserSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Date
 
-class WorkoutViewModel(private val dao: WorkoutSessionDao) : ViewModel() {
+class WorkoutViewModel(
+    private val dao: WorkoutSessionDao,
+    private val dataStore: DataStore<Preferences>
+) : ViewModel() {
     private val _selectedWorkoutType = MutableStateFlow<String?>(null)
     val selectedWorkoutType: StateFlow<String?> = _selectedWorkoutType.asStateFlow()
 
@@ -120,25 +126,29 @@ class WorkoutViewModel(private val dao: WorkoutSessionDao) : ViewModel() {
             0f
         }
         
-        val session = WorkoutSession(
-            workoutType = _selectedWorkoutType.value ?: "Push-Ups",
-            date = Date(),
-            totalReps = reps,
-            avgTempo = if (reps > 0) duration.toFloat() / (reps * 1000) else 0f,
-            formScore = goodFormPercentage,
-            goalReps = _goalReps.value,
-            duration = duration,
-            feedbackType = _feedbackType.value,
-            // NEW: Save quality metrics
-            avgElbowAngle = _avgElbowAngle.value,
-            avgHipAngle = _avgHipAngle.value,
-            goodFormPercentage = goodFormPercentage,
-            notes = "Good form reps: $goodReps/$reps"
-        )
-        
-        _currentSession.value = session
-        
         viewModelScope.launch {
+            // Get current user ID
+            val firebaseUid = UserSessionManager.getCurrentUserId(dataStore)
+            val userId = UserSessionManager.getUserIdAsLong(firebaseUid)
+            
+            val session = WorkoutSession(
+                userId = userId, // ✅ CRITICAL: Associate workout with current user
+                workoutType = _selectedWorkoutType.value ?: "Push-Ups",
+                date = Date(),
+                totalReps = reps,
+                avgTempo = if (reps > 0) duration.toFloat() / (reps * 1000) else 0f,
+                formScore = goodFormPercentage,
+                goalReps = _goalReps.value,
+                duration = duration,
+                feedbackType = _feedbackType.value,
+                // Save quality metrics
+                avgElbowAngle = _avgElbowAngle.value,
+                avgHipAngle = _avgHipAngle.value,
+                goodFormPercentage = goodFormPercentage,
+                notes = "Good form reps: $goodReps/$reps"
+            )
+            
+            _currentSession.value = session
             dao.insertSession(session)
         }
     }
