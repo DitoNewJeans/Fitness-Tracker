@@ -42,12 +42,12 @@ fun HomeScreen(navController: NavController) {
     // Get real stats from database for CURRENT USER only
     val database = AppDatabase.getDatabase(context)
     
-    // Get current user ID - Firebase Auth automatically restores session on app start
-    // Firebase Auth is synchronous, so this should be available immediately
-    val firebaseUid = remember { com.example.fitnesstracker.util.UserSessionManager.getCurrentFirebaseUserId() }
-    val userId = remember(firebaseUid) { 
-        com.example.fitnesstracker.util.UserSessionManager.getUserIdAsLong(firebaseUid)
-    }
+    // Get current Room User ID from DataStore
+    val userId by remember {
+        kotlinx.coroutines.flow.flow {
+            emit(com.example.fitnesstracker.util.UserSessionManager.getUserIdAsLong(context.dataStore))
+        }
+    }.collectAsStateWithLifecycle(initialValue = null)
     
     // Filter stats by current user
     val workoutCount by remember(userId) {

@@ -1,6 +1,7 @@
 package com.example.fitnesstracker.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -10,6 +11,8 @@ import androidx.navigation.compose.composable
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.example.fitnesstracker.data.AppDatabase
+import com.example.fitnesstracker.data.FitnessRepository
+import com.example.fitnesstracker.data.sync.WorkoutSyncService
 import com.example.fitnesstracker.data.firebase.FirebaseAuthService
 import com.example.fitnesstracker.data.firebase.FirestoreRepository
 import com.example.fitnesstracker.ui.screens.*
@@ -17,6 +20,10 @@ import com.example.fitnesstracker.viewmodel.FirebaseAuthViewModel
 import com.example.fitnesstracker.viewmodel.FirebaseViewModelFactory
 import com.example.fitnesstracker.viewmodel.ViewModelFactory
 import com.example.fitnesstracker.viewmodel.WorkoutViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun NavGraph(
@@ -28,9 +35,63 @@ fun NavGraph(
 ) {
     val context = LocalContext.current
     val database = AppDatabase.getDatabase(context)
+    val fitnessRepository = remember {
+        FitnessRepository(
+            database.userDao(),
+            database.exerciseDao(),
+            database.workoutSessionDao()
+        )
+    }
     
-    val firebaseViewModelFactory = FirebaseViewModelFactory(authService, firestoreRepository, dataStore)
-    val workoutViewModelFactory = ViewModelFactory(database.workoutSessionDao(), dataStore)
+    val firebaseViewModelFactory = FirebaseViewModelFactory(
+        authService, 
+        firestoreRepository, 
+        fitnessRepository,
+        dataStore
+    )
+    val workoutViewModelFactory = ViewModelFactory(
+        database.workoutSessionDao(), 
+        firestoreRepository,
+        dataStore
+    )
+    
+    // Initialize sync service
+    val syncService = remember {
+        WorkoutSyncService(
+            database.workoutSessionDao(),
+            firestoreRepository,
+            dataStore
+        )
+    }
+    
+    // Sync data on app start if user is logged in (non-blocking)
+    // Wait a bit for Room User to be created after login
+    LaunchedEffect(Unit) {
+        if (authService.isUserLoggedIn) {
+            // Give FirebaseAuthViewModel time to create Room User
+            delay(1000) // Wait 1 second
+            
+            // Sync in background - pull from cloud, then push local changes
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val syncResult = syncService.fullSync()
+                    syncResult.fold(
+                        onSuccess = { (pulled, pushed) ->
+                            android.util.Log.d("Sync", "Synced: $pulled pulled, $pushed pushed")
+                        },
+                        onFailure = { e ->
+                            android.util.Log.e("Sync", "Sync failed: ${e.message}")
+                            e.printStackTrace()
+                        }
+                    )
+                } catch (e: Exception) {
+                    // Ignore sync errors on startup
+                    android.util.Log.e("Sync", "Sync error: ${e.message}")
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
     
     NavHost(
         navController = navController,
@@ -84,7 +145,7 @@ fun NavGraph(
                         navController.getBackStackEntry(NavRoutes.Home.route)
                     } catch (e: IllegalArgumentException) {
                         // Fallback: if Home is not in back stack, use current entry
-                        navController.currentBackStackEntry!!
+                        navController.currentBackStackEntry ?: navController.getBackStackEntry(navController.graph.startDestinationRoute ?: NavRoutes.Home.route)
                     }
                 },
                 factory = workoutViewModelFactory
@@ -100,7 +161,7 @@ fun NavGraph(
                         navController.getBackStackEntry(NavRoutes.Home.route)
                     } catch (e: IllegalArgumentException) {
                         // Fallback: if Home is not in back stack, use current entry
-                        navController.currentBackStackEntry!!
+                        navController.currentBackStackEntry ?: navController.getBackStackEntry(navController.graph.startDestinationRoute ?: NavRoutes.Home.route)
                     }
                 },
                 factory = workoutViewModelFactory

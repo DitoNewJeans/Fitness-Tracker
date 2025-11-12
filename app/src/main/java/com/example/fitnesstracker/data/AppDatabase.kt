@@ -10,7 +10,7 @@ import androidx.room.Room
 
 @Database(
     entities = [User::class, Exercise::class, WorkoutSession::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -75,6 +75,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 2 to 3 - Add firebaseUid column
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Add firebaseUid column to users table
+                database.execSQL("ALTER TABLE users ADD COLUMN firebaseUid TEXT")
+                // Create unique index on firebaseUid
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_users_firebaseUid ON users(firebaseUid)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -82,7 +92,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "fitness_tracker_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration() // For development only - remove in production
                     .build()
                 INSTANCE = instance

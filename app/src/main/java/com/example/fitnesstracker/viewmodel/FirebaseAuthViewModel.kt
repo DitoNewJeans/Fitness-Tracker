@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.viewModelScope
+import com.example.fitnesstracker.data.FitnessRepository
 import com.example.fitnesstracker.data.firebase.FirebaseAuthService
 import com.example.fitnesstracker.data.firebase.FirestoreRepository
 import com.example.fitnesstracker.data.firebase.FirestoreUser
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class FirebaseAuthViewModel(
     private val authService: FirebaseAuthService,
     private val firestoreRepository: FirestoreRepository,
+    private val fitnessRepository: FitnessRepository,
     private val dataStore: DataStore<Preferences>
 ) : ViewModel() {
     
@@ -46,7 +48,13 @@ class FirebaseAuthViewModel(
 
     private fun initializeFirestore() {
         viewModelScope.launch {
-            firestoreRepository.initializeDefaultExercises()
+            try {
+                firestoreRepository.initializeDefaultExercises()
+            } catch (e: Exception) {
+                // Log error but don't crash - Firestore initialization is non-critical
+                android.util.Log.e("FirebaseAuthViewModel", "Failed to initialize Firestore exercises: ${e.message}")
+                e.printStackTrace()
+            }
         }
     }
 
@@ -67,11 +75,20 @@ class FirebaseAuthViewModel(
                     _currentUser.value = user
                     _isLoggedIn.value = true
                     
+                    // Create or get Room User for this Firebase user
+                    val roomUser = fitnessRepository.getOrCreateUserFromFirebaseUid(
+                        firebaseUid = user.uid,
+                        name = user.displayName ?: "User",
+                        email = user.email ?: ""
+                    )
+                    
                     // Ensure user data is saved to DataStore for UserSessionManager compatibility
                     dataStore.edit { preferences ->
                         preferences[USER_ID_KEY] = user.uid
                         preferences[USER_NAME_KEY] = user.displayName ?: ""
                         preferences[USER_EMAIL_KEY] = user.email ?: ""
+                        // Store Room User ID for quick access
+                        preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
                     }
                     
                     // Update last login in Firestore (non-blocking)
@@ -98,7 +115,11 @@ class FirebaseAuthViewModel(
             val result = authService.signUp(email, password, name)
             
             if (result.isSuccess) {
-                val firebaseUser = result.getOrNull()!!
+                val firebaseUser = result.getOrNull()
+                if (firebaseUser == null) {
+                    _signupError.value = "User creation failed"
+                    return false
+                }
                 
                 // Create user document in Firestore
                 val firestoreUser = FirestoreUser(
@@ -111,12 +132,21 @@ class FirebaseAuthViewModel(
                 val createResult = firestoreRepository.createUser(firestoreUser)
                 
                 if (createResult.isSuccess) {
+                    // Create Room User for this Firebase user
+                    val roomUser = fitnessRepository.getOrCreateUserFromFirebaseUid(
+                        firebaseUid = firebaseUser.uid,
+                        name = name,
+                        email = email
+                    )
+                    
                     // Save to DataStore
                     dataStore.edit { preferences ->
                         preferences[USER_ID_KEY] = firebaseUser.uid
                         preferences[USER_NAME_KEY] = name
                         preferences[USER_EMAIL_KEY] = email
                         preferences[FIRST_TIME_KEY] = "false"
+                        // Store Room User ID for quick access
+                        preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
                     }
                     
                     _currentUser.value = firebaseUser
@@ -152,7 +182,18 @@ class FirebaseAuthViewModel(
             val result = authService.signIn(email, password)
             
             if (result.isSuccess) {
-                val firebaseUser = result.getOrNull()!!
+                val firebaseUser = result.getOrNull()
+                if (firebaseUser == null) {
+                    _loginError.value = "Login failed: User not found"
+                    return false
+                }
+                
+                // Create or get Room User for this Firebase user
+                val roomUser = fitnessRepository.getOrCreateUserFromFirebaseUid(
+                    firebaseUid = firebaseUser.uid,
+                    name = firebaseUser.displayName ?: "User",
+                    email = firebaseUser.email ?: ""
+                )
                 
                 // Update last login
                 firestoreRepository.updateLastLogin(firebaseUser.uid)
@@ -162,6 +203,8 @@ class FirebaseAuthViewModel(
                     preferences[USER_ID_KEY] = firebaseUser.uid
                     preferences[USER_NAME_KEY] = firebaseUser.displayName ?: ""
                     preferences[USER_EMAIL_KEY] = firebaseUser.email ?: ""
+                    // Store Room User ID for quick access
+                    preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
                 }
                 
                 _currentUser.value = firebaseUser
@@ -193,6 +236,7 @@ class FirebaseAuthViewModel(
                 preferences.remove(USER_ID_KEY)
                 preferences.remove(USER_NAME_KEY)
                 preferences.remove(USER_EMAIL_KEY)
+                preferences.remove(ROOM_USER_ID_KEY) // Clear Room User ID
             }
             _currentUser.value = null
             _isLoggedIn.value = false
@@ -217,6 +261,7 @@ class FirebaseAuthViewModel(
         val USER_ID_KEY = stringPreferencesKey("user_id")
         val USER_NAME_KEY = stringPreferencesKey("user_name")
         val USER_EMAIL_KEY = stringPreferencesKey("user_email")
+        val ROOM_USER_ID_KEY = stringPreferencesKey("room_user_id")
     }
 }
 

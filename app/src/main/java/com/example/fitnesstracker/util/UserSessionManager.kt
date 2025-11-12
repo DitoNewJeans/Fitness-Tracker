@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.map
  */
 object UserSessionManager {
     private val USER_ID_KEY = stringPreferencesKey("user_id")
+    private val ROOM_USER_ID_KEY = stringPreferencesKey("room_user_id")
     
     /**
      * Get current Firebase user ID
@@ -47,14 +48,31 @@ object UserSessionManager {
     }
     
     /**
-     * For Room database compatibility, we'll use a hash of the Firebase UID
-     * This converts the Firebase UID string to a Long for the Room database
+     * Get Room User ID from DataStore
+     * This is the Room database User ID (Long) stored as String
      */
-    fun getUserIdAsLong(firebaseUid: String?): Long? {
-        if (firebaseUid == null) return null
-        // Use hashCode to convert string UID to Long
-        // This is deterministic - same UID always produces same Long
-        return firebaseUid.hashCode().toLong()
+    suspend fun getRoomUserIdFromDataStore(dataStore: DataStore<Preferences>): Long? {
+        val roomUserIdString = dataStore.data.map { preferences ->
+            preferences[ROOM_USER_ID_KEY]
+        }.first()
+        return roomUserIdString?.toLongOrNull()
+    }
+    
+    /**
+     * Get Room User ID for current user
+     * This is the proper way to get the Room User ID for saving workouts
+     * Returns null if no user is logged in or Room User ID not found
+     */
+    suspend fun getUserIdAsLong(dataStore: DataStore<Preferences>): Long? {
+        // First try to get Room User ID from DataStore (fastest)
+        val roomUserId = getRoomUserIdFromDataStore(dataStore)
+        if (roomUserId != null) {
+            return roomUserId
+        }
+        
+        // Fallback: If Room User ID not in DataStore, return null
+        // The ViewModel should create the Room User if needed
+        return null
     }
 }
 

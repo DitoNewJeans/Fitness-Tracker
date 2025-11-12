@@ -12,7 +12,37 @@ class FitnessRepository(
     fun getAllUsers(): Flow<List<User>> = userDao.getAllUsers()
     suspend fun getUserById(userId: Long): User? = userDao.getUserById(userId)
     suspend fun getUserByEmail(email: String): User? = userDao.getUserByEmail(email)
+    suspend fun getUserByFirebaseUid(firebaseUid: String): User? = userDao.getUserByFirebaseUid(firebaseUid)
     suspend fun insertUser(user: User): Long = userDao.insertUser(user)
+    
+    /**
+     * Get or create a Room User from Firebase UID
+     * This ensures each Firebase user has a corresponding Room User record
+     */
+    suspend fun getOrCreateUserFromFirebaseUid(
+        firebaseUid: String,
+        name: String,
+        email: String
+    ): User {
+        // Try to find existing user by Firebase UID
+        val existingUser = getUserByFirebaseUid(firebaseUid)
+        if (existingUser != null) {
+            // Update last login and return existing user
+            updateLastLogin(existingUser.id)
+            return existingUser
+        }
+        
+        // Create new Room User for this Firebase user
+        val newUser = User(
+            name = name,
+            email = email,
+            firebaseUid = firebaseUid,
+            createdAt = Date(),
+            lastLoginAt = Date()
+        )
+        val userId = insertUser(newUser)
+        return newUser.copy(id = userId)
+    }
     suspend fun updateUser(user: User) = userDao.updateUser(user)
     suspend fun deleteUser(user: User) = userDao.deleteUser(user)
     suspend fun updateLastLogin(userId: Long, loginTime: Date = Date()) = 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,7 +19,12 @@ import androidx.navigation.NavController
 import com.example.fitnesstracker.dataStore
 import com.example.fitnesstracker.data.AppDatabase
 import com.example.fitnesstracker.data.WorkoutSession
+import com.example.fitnesstracker.data.firebase.FirestoreRepository
+import com.example.fitnesstracker.data.sync.WorkoutSyncService
 import com.example.fitnesstracker.navigation.NavRoutes
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.*
@@ -28,25 +34,85 @@ import java.util.*
 fun HistoryScreen(navController: NavController) {
     val context = LocalContext.current
     val database = AppDatabase.getDatabase(context)
+    val firestoreRepository = remember { FirestoreRepository() }
+    val syncService = remember {
+        WorkoutSyncService(
+            database.workoutSessionDao(),
+            firestoreRepository,
+            context.dataStore
+        )
+    }
     
-    // Get current user ID
+    // Trigger sync when screen is opened
+    LaunchedEffect(Unit) {
+        // Sync from cloud when History screen opens
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val syncResult = syncService.syncFromCloud()
+                syncResult.fold(
+                    onSuccess = { count ->
+                        android.util.Log.d("HistorySync", "Synced $count workouts from cloud")
+                    },
+                    onFailure = { e ->
+                        android.util.Log.e("HistorySync", "Sync failed: ${e.message}")
+                    }
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("HistorySync", "Sync error: ${e.message}")
+            }
+        }
+    }
+    
+    // Get current Room User ID from DataStore
     val userId by remember {
         kotlinx.coroutines.flow.flow {
-            val firebaseUid = com.example.fitnesstracker.util.UserSessionManager.getCurrentUserId(context.dataStore)
-            emit(com.example.fitnesstracker.util.UserSessionManager.getUserIdAsLong(firebaseUid))
+            val id = com.example.fitnesstracker.util.UserSessionManager.getUserIdAsLong(context.dataStore)
+            android.util.Log.d("HistoryScreen", "Current userId: $id")
+            emit(id)
         }
     }.collectAsStateWithLifecycle(initialValue = null)
     
     // Get workout sessions for CURRENT USER only
     val sessionsFlow: Flow<List<WorkoutSession>> = remember(userId) {
         if (userId != null) {
+            android.util.Log.d("HistoryScreen", "Querying sessions for userId: $userId")
             database.workoutSessionDao().getSessionsByUser(userId!!)
         } else {
+            android.util.Log.d("HistoryScreen", "userId is null, returning empty list")
             kotlinx.coroutines.flow.flowOf(emptyList())
         }
     }
     val sessions by sessionsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    
+    // Log when sessions change
+    LaunchedEffect(sessions.size) {
+        android.util.Log.d("HistoryScreen", "Sessions count: ${sessions.size}")
+    }
 
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    fun refreshData() {
+        isRefreshing = true
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val syncResult = syncService.syncFromCloud()
+                syncResult.fold(
+                    onSuccess = { count ->
+                        android.util.Log.d("HistorySync", "Manual sync: $count workouts synced")
+                    },
+                    onFailure = { e ->
+                        android.util.Log.e("HistorySync", "Manual sync failed: ${e.message}")
+                    }
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("HistorySync", "Manual sync error: ${e.message}")
+            } finally {
+                isRefreshing = false
+            }
+        }
+    }
+    
     Scaffold(
         topBar = {
             TopAppBar(
@@ -54,6 +120,17 @@ fun HistoryScreen(navController: NavController) {
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { refreshData() },
+                        enabled = !isRefreshing
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh"
+                        )
                     }
                 }
             )

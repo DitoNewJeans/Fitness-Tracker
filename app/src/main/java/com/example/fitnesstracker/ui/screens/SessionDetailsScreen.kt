@@ -81,7 +81,29 @@ fun SessionDetailsScreen(navController: NavController, sessionId: Long) {
                 }
             }
             else -> {
-                SessionDetailsContent(session!!, paddingValues)
+                session?.let { 
+                    SessionDetailsContent(it, paddingValues)
+                } ?: run {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                "Session not found",
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            Button(onClick = { navController.navigateUp() }) {
+                                Text("Go Back")
+                            }
+                        }
+                    }
+                }
             }
         }
     }

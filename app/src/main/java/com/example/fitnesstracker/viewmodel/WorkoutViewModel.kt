@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitnesstracker.data.WorkoutSession
 import com.example.fitnesstracker.data.WorkoutSessionDao
+import com.example.fitnesstracker.data.firebase.FirestoreRepository
+import com.example.fitnesstracker.data.firebase.WorkoutSessionConverter
 import com.example.fitnesstracker.util.UserSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +17,7 @@ import java.util.Date
 
 class WorkoutViewModel(
     private val dao: WorkoutSessionDao,
+    private val firestoreRepository: FirestoreRepository,
     private val dataStore: DataStore<Preferences>
 ) : ViewModel() {
     private val _selectedWorkoutType = MutableStateFlow<String?>(null)
@@ -96,9 +99,20 @@ class WorkoutViewModel(
     }
 
     // NEW: Track angles for averaging
+    // Limit list size to prevent memory leak during long workouts
+    private val MAX_ANGLE_SAMPLES = 1000
+    
     fun updateAngles(elbowAngle: Int, hipAngle: Int) {
         _elbowAngles.add(elbowAngle)
         _hipAngles.add(hipAngle)
+        
+        // Prevent memory leak: keep only recent samples
+        if (_elbowAngles.size > MAX_ANGLE_SAMPLES) {
+            _elbowAngles.removeAt(0)
+        }
+        if (_hipAngles.size > MAX_ANGLE_SAMPLES) {
+            _hipAngles.removeAt(0)
+        }
 
         if (_elbowAngles.isNotEmpty()) {
             _avgElbowAngle.value = _elbowAngles.average().toFloat()
@@ -128,12 +142,12 @@ class WorkoutViewModel(
         
         viewModelScope.launch {
             try {
-                // Get current user ID
+                // Get Room User ID and Firebase UID from DataStore
+                val userId = UserSessionManager.getUserIdAsLong(dataStore)
                 val firebaseUid = UserSessionManager.getCurrentUserId(dataStore)
-                val userId = UserSessionManager.getUserIdAsLong(firebaseUid)
                 
                 // Only save if we have a valid user ID
-                if (userId != null) {
+                if (userId != null && firebaseUid != null) {
                     val session = WorkoutSession(
                         userId = userId, // ✅ CRITICAL: Associate workout with current user
                         workoutType = _selectedWorkoutType.value ?: "Push-Ups",
@@ -152,7 +166,27 @@ class WorkoutViewModel(
                     )
                     
                     _currentSession.value = session
+                    
+                    // Save to local Room database (always save locally first)
                     dao.insertSession(session)
+                    
+                    // Save to Firestore (cloud sync) - non-blocking, fails gracefully if offline
+                    try {
+                        val firestoreSession = WorkoutSessionConverter.toFirestore(session, firebaseUid)
+                        firestoreRepository.createWorkoutSession(firestoreSession).fold(
+                            onSuccess = { 
+                                // Successfully saved to cloud
+                            },
+                            onFailure = { e ->
+                                // Failed to save to cloud (offline or network error)
+                                // Data is still saved locally, will sync later
+                                e.printStackTrace()
+                            }
+                        )
+                    } catch (e: Exception) {
+                        // Ignore cloud sync errors - local data is saved
+                        e.printStackTrace()
+                    }
                 } else {
                     // Create session without saving to DB (for display purposes)
                     val session = WorkoutSession(

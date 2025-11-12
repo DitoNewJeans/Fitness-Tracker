@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.fitnesstracker.data.AppDatabase
+import com.example.fitnesstracker.data.firebase.FirestoreRepository
 import com.example.fitnesstracker.navigation.NavRoutes
 import com.example.fitnesstracker.viewmodel.ViewModelFactory
 import com.example.fitnesstracker.viewmodel.WorkoutViewModel
@@ -22,8 +23,13 @@ import com.example.fitnesstracker.dataStore
 fun CustomizeSessionScreen(navController: NavController) {
     val context = LocalContext.current
     val database = AppDatabase.getDatabase(context)
+    val firestoreRepository = remember { FirestoreRepository() }
     val workoutViewModel: WorkoutViewModel = viewModel(
-        factory = ViewModelFactory(database.workoutSessionDao(), context.dataStore)
+        factory = ViewModelFactory(
+            database.workoutSessionDao(),
+            firestoreRepository,
+            context.dataStore
+        )
     )
     
     var goalReps by remember { mutableStateOf(10) }
