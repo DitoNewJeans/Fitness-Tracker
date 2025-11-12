@@ -14,7 +14,7 @@ import com.example.fitnesstracker.navigation.NavRoutes
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectWorkoutScreen(navController: NavController) {
-    val workouts = listOf("Push-Ups", "Squats", "Pull-Ups", "Planks")
+    val workouts = listOf("Push-Ups")
 
     Scaffold(
         topBar = {

@@ -63,11 +63,6 @@ fun SettingsScreen(
                 title = "Tutorial & Help",
                 onClick = { navController.navigate(NavRoutes.TutorialHelp.route) }
             )
-            SettingsItem(
-                icon = Icons.Default.Settings,
-                title = "Pair Apple Watch",
-                onClick = { navController.navigate(NavRoutes.PairWatch.route) }
-            )
 
             Spacer(modifier = Modifier.height(16.dp))
 

@@ -6,14 +6,22 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.fitnesstracker.dataStore
+import com.example.fitnesstracker.util.ThemeManager
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppPreferencesScreen(navController: NavController) {
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var darkModeEnabled by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Read dark mode preference from DataStore
+    val darkModeEnabled by ThemeManager.getDarkModePreference(context.dataStore)
+        .collectAsState(initial = true)
 
     Scaffold(
         topBar = {
@@ -39,17 +47,15 @@ fun AppPreferencesScreen(navController: NavController) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                Text("Notifications")
-                Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
                 Text("Dark Mode")
-                Switch(checked = darkModeEnabled, onCheckedChange = { darkModeEnabled = it })
+                Switch(
+                    checked = darkModeEnabled,
+                    onCheckedChange = { enabled ->
+                        coroutineScope.launch {
+                            ThemeManager.setDarkModePreference(context.dataStore, enabled)
+                        }
+                    }
+                )
             }
         }
     }

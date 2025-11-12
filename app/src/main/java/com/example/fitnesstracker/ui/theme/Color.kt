@@ -15,6 +15,7 @@ val SurfaceVariant = Color(0xFFF5F5F5)
 
 val OnPrimary = Color(0xFFFFFFFF)
 val OnSecondary = Color(0xFFFFFFFF)
+val OnPrimaryContainer = Color(0xFFFFFFFF) // White text on purple background for readability
 val OnBackground = Color(0xFF1F2937)
 val OnSurface = Color(0xFF1F2937)
 val OnSurfaceVariant = Color(0xFF6B7280)
@@ -35,6 +36,7 @@ val SurfaceVariantDark = Color(0xFF374151)
 
 val OnPrimaryDark = Color(0xFF000000)
 val OnSecondaryDark = Color(0xFF000000)
+val OnPrimaryContainerDark = Color(0xFFF9FAFB) // Light text on dark purple background
 val OnBackgroundDark = Color(0xFFF9FAFB)
 val OnSurfaceDark = Color(0xFFF9FAFB)
 val OnSurfaceVariantDark = Color(0xFF9CA3AF)

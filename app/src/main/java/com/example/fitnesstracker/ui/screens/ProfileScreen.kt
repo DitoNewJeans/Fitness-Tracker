@@ -16,7 +16,6 @@ import com.example.fitnesstracker.navigation.NavRoutes
 import com.example.fitnesstracker.viewmodel.FirebaseAuthViewModel
 import com.example.fitnesstracker.viewmodel.FirebaseWorkoutViewModel
 import com.example.fitnesstracker.viewmodel.FirebaseViewModelFactory
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,9 +24,6 @@ fun ProfileScreen(
     authViewModel: FirebaseAuthViewModel,
     viewModelFactory: FirebaseViewModelFactory
 ) {
-    var showLogoutDialog by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-    
     val workoutViewModel: FirebaseWorkoutViewModel = viewModel(factory = viewModelFactory)
     val totalSessions by workoutViewModel.totalSessions.collectAsState()
     val totalReps by workoutViewModel.totalReps.collectAsState()
@@ -226,113 +222,6 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Account Section
-            Text(
-                "Account",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            // Logout Button
-            Card(
-                onClick = { showLogoutDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(72.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Surface(
-                        modifier = Modifier.size(32.dp),
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.error
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.ExitToApp,
-                                contentDescription = "Logout",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onError
-                            )
-                        }
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Logout",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Text(
-                            "Sign out of your account",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            }
         }
-    }
-
-    // Logout Confirmation Dialog
-    if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            icon = {
-                Icon(
-                    Icons.Default.ExitToApp,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                )
-            },
-            title = {
-                Text(
-                    "Logout",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    "Are you sure you want to logout?",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            authViewModel.logout()
-                            showLogoutDialog = false
-                            // Navigate to Welcome and clear back stack
-                            navController.navigate(NavRoutes.Welcome.route) {
-                                popUpTo(0) { inclusive = true }
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Logout")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
     }
 }
