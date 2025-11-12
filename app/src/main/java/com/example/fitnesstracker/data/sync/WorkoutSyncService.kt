@@ -75,9 +75,15 @@ class WorkoutSyncService(
                     
                     // Only add if not already in local database (O(1) lookup)
                     if (!localSessionKeys.contains(sessionKey)) {
-                        val roomSession = WorkoutSessionConverter.toRoom(firestoreSession, roomUserId)
-                        workoutSessionDao.insertSession(roomSession)
-                        syncedCount++
+                        try {
+                            val roomSession = WorkoutSessionConverter.toRoom(firestoreSession, roomUserId)
+                            workoutSessionDao.insertSession(roomSession)
+                            syncedCount++
+                        } catch (e: Exception) {
+                            android.util.Log.e("WorkoutSyncService", "Failed to insert synced session: ${e.message}")
+                            e.printStackTrace()
+                            // Continue with next session - don't fail entire sync
+                        }
                     }
                 }
                 

@@ -13,7 +13,15 @@ class FitnessRepository(
     suspend fun getUserById(userId: Long): User? = userDao.getUserById(userId)
     suspend fun getUserByEmail(email: String): User? = userDao.getUserByEmail(email)
     suspend fun getUserByFirebaseUid(firebaseUid: String): User? = userDao.getUserByFirebaseUid(firebaseUid)
-    suspend fun insertUser(user: User): Long = userDao.insertUser(user)
+    suspend fun insertUser(user: User): Long {
+        return try {
+            userDao.insertUser(user)
+        } catch (e: Exception) {
+            android.util.Log.e("FitnessRepository", "Failed to insert user: ${e.message}")
+            e.printStackTrace()
+            throw e // Re-throw to let caller handle
+        }
+    }
     
     /**
      * Get or create a Room User from Firebase UID
@@ -40,8 +48,15 @@ class FitnessRepository(
             createdAt = Date(),
             lastLoginAt = Date()
         )
-        val userId = insertUser(newUser)
-        return newUser.copy(id = userId)
+        return try {
+            val userId = insertUser(newUser)
+            newUser.copy(id = userId)
+        } catch (e: Exception) {
+            android.util.Log.e("FitnessRepository", "Failed to create Room user: ${e.message}")
+            e.printStackTrace()
+            // Re-throw to let caller handle - this is critical for user creation
+            throw e
+        }
     }
     suspend fun updateUser(user: User) = userDao.updateUser(user)
     suspend fun deleteUser(user: User) = userDao.deleteUser(user)
@@ -67,7 +82,15 @@ class FitnessRepository(
         workoutSessionDao.getSessionsByWorkoutType(workoutType)
     suspend fun getSessionById(sessionId: Long): WorkoutSession? = 
         workoutSessionDao.getSessionById(sessionId)
-    suspend fun insertSession(session: WorkoutSession): Long = workoutSessionDao.insertSession(session)
+    suspend fun insertSession(session: WorkoutSession): Long {
+        return try {
+            workoutSessionDao.insertSession(session)
+        } catch (e: Exception) {
+            android.util.Log.e("FitnessRepository", "Failed to insert workout session: ${e.message}")
+            e.printStackTrace()
+            throw e // Re-throw to let caller handle
+        }
+    }
     suspend fun updateSession(session: WorkoutSession) = workoutSessionDao.updateSession(session)
     suspend fun deleteSession(session: WorkoutSession) = workoutSessionDao.deleteSession(session)
     suspend fun deleteSessionById(sessionId: Long) = workoutSessionDao.deleteSessionById(sessionId)
@@ -119,7 +142,13 @@ class FitnessRepository(
                     isActive = true
                 )
             )
-            exerciseDao.insertExercises(defaultExercises)
+            try {
+                exerciseDao.insertExercises(defaultExercises)
+            } catch (e: Exception) {
+                android.util.Log.e("FitnessRepository", "Failed to insert default exercises: ${e.message}")
+                e.printStackTrace()
+                // Non-critical - exercises might already exist
+            }
         }
     }
 }

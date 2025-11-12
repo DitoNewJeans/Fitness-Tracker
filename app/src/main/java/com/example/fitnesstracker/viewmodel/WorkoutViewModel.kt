@@ -168,7 +168,14 @@ class WorkoutViewModel(
                     _currentSession.value = session
                     
                     // Save to local Room database (always save locally first)
-                    dao.insertSession(session)
+                    try {
+                        dao.insertSession(session)
+                    } catch (e: Exception) {
+                        // Log database error but don't crash - session is still available for display
+                        android.util.Log.e("WorkoutViewModel", "Failed to save workout session to database: ${e.message}")
+                        e.printStackTrace()
+                        // Continue - session is still in _currentSession for display
+                    }
                     
                     // Save to Firestore (cloud sync) - non-blocking, fails gracefully if offline
                     try {

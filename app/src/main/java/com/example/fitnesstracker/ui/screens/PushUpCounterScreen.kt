@@ -2,27 +2,32 @@ package com.example.fitnesstracker.ui.screens
 
 import android.annotation.SuppressLint
 import android.graphics.Color
-import android.util.Size
+import android.util.Size as AndroidSize
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color as UiColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import kotlinx.coroutines.delay
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -42,8 +47,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.graphics.PathEffect
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -94,6 +101,53 @@ private fun PushUpCounterContent(navController: NavController, viewModel: Workou
     var imageHeight by remember { mutableStateOf(0) }
     var imageRotation by remember { mutableStateOf(0) }
     var showFinishDialog by remember { mutableStateOf(false) }
+    
+    // Workout timer
+    val goalReps by viewModel.goalReps.collectAsState()
+    val workoutStartTime by viewModel.workoutStartTime.collectAsState()
+    var elapsedTime by remember { mutableStateOf(0L) }
+    
+    // Timer update - runs continuously while workout is active
+    LaunchedEffect(workoutStartTime) {
+        val startTime = workoutStartTime
+        if (startTime != null) {
+            // Update immediately when workout starts
+            elapsedTime = System.currentTimeMillis() - startTime
+            
+            // Timer loop - updates every second
+            while (true) {
+                delay(1000)
+                val currentStartTime = viewModel.workoutStartTime.value
+                if (currentStartTime != null) {
+                    elapsedTime = System.currentTimeMillis() - currentStartTime
+                } else {
+                    elapsedTime = 0L
+                    break // Stop if workoutStartTime becomes null
+                }
+            }
+        } else {
+            elapsedTime = 0L // Reset if no workout active
+        }
+    }
+    
+    // Format time as MM:SS
+    val formattedTime = remember(elapsedTime) {
+        val seconds = (elapsedTime / 1000).toInt()
+        val minutes = seconds / 60
+        val secs = seconds % 60
+        String.format("%02d:%02d", minutes, secs)
+    }
+    
+    // Rep counter animation
+    val previousReps = remember { mutableStateOf(0) }
+    val scale by animateFloatAsState(
+        targetValue = if (reps != previousReps.value) 1.2f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        finishedListener = { previousReps.value = reps }
+    )
 
     // Pose detector
     val options = remember {
@@ -127,7 +181,7 @@ private fun PushUpCounterContent(navController: NavController, viewModel: Workou
 
                     val analysis = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setTargetResolution(Size(720, 1280))
+                        .setTargetResolution(AndroidSize(720, 1280))
                         .setTargetRotation(pv.display.rotation)
                         .build()
 
@@ -260,77 +314,232 @@ private fun PushUpCounterContent(navController: NavController, viewModel: Workou
             }
         }
 
-        // Top info panel
-        Column(
+        // Top Left: Rep Counter with Progress Ring
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
                 .align(Alignment.TopStart)
                 .padding(16.dp)
+                .zIndex(1f)
         ) {
-            Text(
-                text = "Reps: $reps",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = "Good Form: $goodFormReps",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(8.dp))
-            
-            // Quality indicator
-            val qualityIcon = when (repQuality) {
-                RepQuality.EXCELLENT -> "⭐"
-                RepQuality.GOOD -> "✓"
-                RepQuality.ACCEPTABLE -> "~"
-            }
-            val qualityColor = when (repQuality) {
-                RepQuality.EXCELLENT -> androidx.compose.ui.graphics.Color(0xFF00FF6D)
-                RepQuality.GOOD -> androidx.compose.ui.graphics.Color(0xFF00E5FF)
-                RepQuality.ACCEPTABLE -> androidx.compose.ui.graphics.Color(0xFFFFA500)
-            }
-            Text(
-                text = "$qualityIcon ${repQuality.name}",
-                style = MaterialTheme.typography.titleSmall,
-                color = qualityColor
-            )
-            
-            Spacer(Modifier.height(8.dp))
-            Text(text = "Elbow: ${elbowDeg}°", style = MaterialTheme.typography.bodyLarge)
-            Text(text = "Hip: ${hipDeg}°", style = MaterialTheme.typography.bodyLarge)
-
-            // Dynamic form feedback
-            if (formFeedback.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = formFeedback,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = when {
-                        formFeedback.contains("Perfect") -> androidx.compose.ui.graphics.Color(0xFF00FF6D)
-                        formFeedback.contains("Good") -> androidx.compose.ui.graphics.Color(0xFF00E5FF)
-                        else -> androidx.compose.ui.graphics.Color(0xFFFFA500)
-                    }
+            Card(
+                modifier = Modifier.width(140.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = UiColor.Black.copy(alpha = 0.7f)
                 )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Circular Progress Ring with Rep Count
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(100.dp)
+                    ) {
+                        // Progress ring
+                        CircularProgressRing(
+                            progress = if (goalReps > 0) (reps.toFloat() / goalReps).coerceAtMost(1f) else 0f,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // Rep count in center
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.scale(scale)
+                        ) {
+                            Text(
+                                text = "$reps",
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = UiColor.White
+                            )
+                            Text(
+                                text = "/ $goalReps",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = UiColor.White.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    // Good Form Count
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "✓ $goodFormReps",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = UiColor(0xFF00FF6D)
+                        )
+                    }
+                }
             }
         }
         
-        // Finish Workout button
-        Button(
-            onClick = { showFinishDialog = true },
-            enabled = reps > 0,
+        // Top Right: Timer and Form Quality Gauge
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
-                .width(200.dp)
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .zIndex(1f)
         ) {
-            Icon(Icons.Default.Check, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Finish Workout")
+            Card(
+                modifier = Modifier.width(140.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = UiColor.Black.copy(alpha = 0.7f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Timer
+                    Text(
+                        text = formattedTime,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = UiColor.White
+                    )
+                    Text(
+                        text = "Time",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = UiColor.White.copy(alpha = 0.7f)
+                    )
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    // Form Quality Gauge
+                    val formPercentage = if (reps > 0) (goodFormReps.toFloat() / reps * 100) else 0f
+                    FormQualityGauge(
+                        percentage = formPercentage,
+                        modifier = Modifier.size(60.dp)
+                    )
+                    
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "${formPercentage.toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = UiColor.White
+                    )
+                    Text(
+                        text = "Form Quality",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = UiColor.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+        
+        // Bottom Left: Angle Indicators
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(16.dp)
+                .zIndex(1f)
+        ) {
+            Card(
+                modifier = Modifier.width(120.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = UiColor.Black.copy(alpha = 0.7f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    // Elbow Angle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Elbow",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = UiColor.White.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "${elbowDeg}°",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (elbowDeg in 85..95) UiColor(0xFF00FF6D) else UiColor(0xFFFFA500)
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    // Hip Angle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Hip",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = UiColor.White.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "${hipDeg}°",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (hipDeg in 170..180) UiColor(0xFF00FF6D) else UiColor(0xFFFFA500)
+                        )
+                    }
+                }
+            }
+        }
+        
+        // Center Bottom: Form Feedback Card
+        if (formFeedback.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 100.dp)
+                    .zIndex(1f)
+            ) {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = when {
+                            formFeedback.contains("Perfect") -> UiColor(0xFF00FF6D).copy(alpha = 0.9f)
+                            formFeedback.contains("Good") -> UiColor(0xFF00E5FF).copy(alpha = 0.9f)
+                            else -> UiColor(0xFFFFA500).copy(alpha = 0.9f)
+                        }
+                    )
+                ) {
+                    Text(
+                        text = formFeedback,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = UiColor.White
+                    )
+                }
+            }
+        }
+        
+        // Finish Workout button (FAB style)
+        FloatingActionButton(
+            onClick = { showFinishDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(24.dp)
+                .size(64.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ) {
+            Icon(
+                Icons.Default.Check,
+                contentDescription = "Finish Workout",
+                modifier = Modifier.size(32.dp)
+            )
         }
         
         // Finish confirmation dialog
@@ -460,6 +669,95 @@ private fun smoothAngles(elbowRaw: Int, hipRaw: Int): Pair<Int, Int> {
     emaElbow = if (emaElbow == null) elbowRaw.toDouble() else (EMA_ALPHA * elbowRaw + (1 - EMA_ALPHA) * emaElbow!!)
     emaHip = if (emaHip == null) hipRaw.toDouble() else (EMA_ALPHA * hipRaw + (1 - EMA_ALPHA) * emaHip!!)
     return Pair(emaElbow!!.toInt(), emaHip!!.toInt())
+}
+
+/**
+ * Circular Progress Ring Component
+ * Shows progress toward goal reps
+ */
+@Composable
+private fun CircularProgressRing(
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val strokeWidth = 8.dp.toPx()
+        val radius = (size.minDimension - strokeWidth) / 2f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        
+        // Background circle
+        drawCircle(
+            color = UiColor.White.copy(alpha = 0.2f),
+            radius = radius,
+            center = center,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+        
+        // Progress circle
+        val sweepAngle = progress * 360f
+        val progressColor = when {
+            progress >= 1f -> UiColor(0xFF00FF6D) // Green when complete
+            progress >= 0.7f -> UiColor(0xFF00E5FF) // Cyan when close
+            progress >= 0.4f -> UiColor(0xFFFFA500) // Orange when halfway
+            else -> UiColor(0xFFFF6B6B) // Red when starting
+        }
+        
+        drawArc(
+            color = progressColor,
+            startAngle = -90f,
+            sweepAngle = sweepAngle,
+            useCenter = false,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            topLeft = Offset(center.x - radius, center.y - radius),
+            size = Size(radius * 2, radius * 2)
+        )
+    }
+}
+
+/**
+ * Form Quality Gauge Component
+ * Shows form quality as a circular gauge
+ */
+@Composable
+private fun FormQualityGauge(
+    percentage: Float,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val strokeWidth = 6.dp.toPx()
+        val radius = (size.minDimension - strokeWidth) / 2f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        
+        // Background arc (0-100%)
+        drawArc(
+            color = UiColor.White.copy(alpha = 0.2f),
+            startAngle = -90f,
+            sweepAngle = 180f,
+            useCenter = false,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            topLeft = Offset(center.x - radius, center.y - radius),
+            size = Size(radius * 2, radius * 2)
+        )
+        
+        // Quality arc
+        val sweepAngle = (percentage / 100f) * 180f
+        val qualityColor = when {
+            percentage >= 80f -> UiColor(0xFF00FF6D) // Green
+            percentage >= 60f -> UiColor(0xFF00E5FF) // Cyan
+            percentage >= 40f -> UiColor(0xFFFFA500) // Orange
+            else -> UiColor(0xFFFF6B6B) // Red
+        }
+        
+        drawArc(
+            color = qualityColor,
+            startAngle = -90f,
+            sweepAngle = sweepAngle,
+            useCenter = false,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            topLeft = Offset(center.x - radius, center.y - radius),
+            size = Size(radius * 2, radius * 2)
+        )
+    }
 }
 
 

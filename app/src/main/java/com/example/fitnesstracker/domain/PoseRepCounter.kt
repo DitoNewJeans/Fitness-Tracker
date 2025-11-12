@@ -23,7 +23,7 @@ data class RepState(
 class PoseRepCounter(
     private val elbowDownMax: Int = 110,        // More realistic than 90°
     private val elbowPerfect: Int = 90,         // For EXCELLENT quality
-    private val elbowUpMin: Int = 160,          // >= 160° counts as top
+    private val elbowUpMin: Int = 125,          // >= 125° counts as top (more forgiving, doesn't require fully straight)
     private val enforceHipForm: Boolean = false, // Hip warns but doesn't block by default
     private val hipWarnThreshold: Int = 30,     // More forgiving
     private val hipPerfectThreshold: Int = 15,  // For EXCELLENT quality

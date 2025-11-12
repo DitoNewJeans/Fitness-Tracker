@@ -60,8 +60,15 @@ class FirebaseAuthViewModel(
 
     private fun checkFirstTimeUser() {
         viewModelScope.launch {
-            val preferences = dataStore.data.first()
-            _isFirstTimeUser.value = preferences[FIRST_TIME_KEY] == null
+            try {
+                val preferences = dataStore.data.first()
+                _isFirstTimeUser.value = preferences[FIRST_TIME_KEY] == null
+            } catch (e: Exception) {
+                android.util.Log.e("FirebaseAuthViewModel", "Failed to check first time user: ${e.message}")
+                e.printStackTrace()
+                // Default to first time user on error
+                _isFirstTimeUser.value = true
+            }
         }
     }
 
@@ -83,12 +90,18 @@ class FirebaseAuthViewModel(
                     )
                     
                     // Ensure user data is saved to DataStore for UserSessionManager compatibility
-                    dataStore.edit { preferences ->
-                        preferences[USER_ID_KEY] = user.uid
-                        preferences[USER_NAME_KEY] = user.displayName ?: ""
-                        preferences[USER_EMAIL_KEY] = user.email ?: ""
-                        // Store Room User ID for quick access
-                        preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
+                    try {
+                        dataStore.edit { preferences ->
+                            preferences[USER_ID_KEY] = user.uid
+                            preferences[USER_NAME_KEY] = user.displayName ?: ""
+                            preferences[USER_EMAIL_KEY] = user.email ?: ""
+                            // Store Room User ID for quick access
+                            preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("FirebaseAuthViewModel", "Failed to save user data to DataStore: ${e.message}")
+                        e.printStackTrace()
+                        // Continue - user is still logged in via Firebase Auth
                     }
                     
                     // Update last login in Firestore (non-blocking)
@@ -140,13 +153,19 @@ class FirebaseAuthViewModel(
                     )
                     
                     // Save to DataStore
-                    dataStore.edit { preferences ->
-                        preferences[USER_ID_KEY] = firebaseUser.uid
-                        preferences[USER_NAME_KEY] = name
-                        preferences[USER_EMAIL_KEY] = email
-                        preferences[FIRST_TIME_KEY] = "false"
-                        // Store Room User ID for quick access
-                        preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
+                    try {
+                        dataStore.edit { preferences ->
+                            preferences[USER_ID_KEY] = firebaseUser.uid
+                            preferences[USER_NAME_KEY] = name
+                            preferences[USER_EMAIL_KEY] = email
+                            preferences[FIRST_TIME_KEY] = "false"
+                            // Store Room User ID for quick access
+                            preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("FirebaseAuthViewModel", "Failed to save user data to DataStore during signup: ${e.message}")
+                        e.printStackTrace()
+                        // Continue - user is still created in Firebase
                     }
                     
                     _currentUser.value = firebaseUser
@@ -199,12 +218,18 @@ class FirebaseAuthViewModel(
                 firestoreRepository.updateLastLogin(firebaseUser.uid)
                 
                 // Save to DataStore
-                dataStore.edit { preferences ->
-                    preferences[USER_ID_KEY] = firebaseUser.uid
-                    preferences[USER_NAME_KEY] = firebaseUser.displayName ?: ""
-                    preferences[USER_EMAIL_KEY] = firebaseUser.email ?: ""
-                    // Store Room User ID for quick access
-                    preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
+                try {
+                    dataStore.edit { preferences ->
+                        preferences[USER_ID_KEY] = firebaseUser.uid
+                        preferences[USER_NAME_KEY] = firebaseUser.displayName ?: ""
+                        preferences[USER_EMAIL_KEY] = firebaseUser.email ?: ""
+                        // Store Room User ID for quick access
+                        preferences[ROOM_USER_ID_KEY] = roomUser.id.toString()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("FirebaseAuthViewModel", "Failed to save user data to DataStore during login: ${e.message}")
+                    e.printStackTrace()
+                    // Continue - user is still logged in via Firebase Auth
                 }
                 
                 _currentUser.value = firebaseUser
@@ -232,11 +257,17 @@ class FirebaseAuthViewModel(
     fun logout() {
         viewModelScope.launch {
             authService.signOut()
-            dataStore.edit { preferences ->
-                preferences.remove(USER_ID_KEY)
-                preferences.remove(USER_NAME_KEY)
-                preferences.remove(USER_EMAIL_KEY)
-                preferences.remove(ROOM_USER_ID_KEY) // Clear Room User ID
+            try {
+                dataStore.edit { preferences ->
+                    preferences.remove(USER_ID_KEY)
+                    preferences.remove(USER_NAME_KEY)
+                    preferences.remove(USER_EMAIL_KEY)
+                    preferences.remove(ROOM_USER_ID_KEY) // Clear Room User ID
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("FirebaseAuthViewModel", "Failed to clear user data from DataStore: ${e.message}")
+                e.printStackTrace()
+                // Continue - user is still logged out via Firebase Auth
             }
             _currentUser.value = null
             _isLoggedIn.value = false
@@ -245,8 +276,14 @@ class FirebaseAuthViewModel(
 
     fun setFirstTimeComplete() {
         viewModelScope.launch {
-            dataStore.edit { preferences ->
-                preferences[FIRST_TIME_KEY] = "false"
+            try {
+                dataStore.edit { preferences ->
+                    preferences[FIRST_TIME_KEY] = "false"
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("FirebaseAuthViewModel", "Failed to set first time complete: ${e.message}")
+                e.printStackTrace()
+                // Non-critical - continue
             }
         }
     }

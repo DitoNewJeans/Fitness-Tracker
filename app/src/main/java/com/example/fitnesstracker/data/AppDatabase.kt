@@ -93,7 +93,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "fitness_tracker_database"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .fallbackToDestructiveMigration() // For development only - remove in production
+                    // Removed fallbackToDestructiveMigration for production stability
+                    // If migration fails, app will crash rather than silently lose data
                     .build()
                 INSTANCE = instance
                 instance

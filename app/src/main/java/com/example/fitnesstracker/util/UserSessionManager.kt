@@ -28,9 +28,15 @@ object UserSessionManager {
      * This is the Firebase UID stored locally
      */
     suspend fun getUserIdFromDataStore(dataStore: DataStore<Preferences>): String? {
-        return dataStore.data.map { preferences ->
-            preferences[USER_ID_KEY]
-        }.first()
+        return try {
+            dataStore.data.map { preferences ->
+                preferences[USER_ID_KEY]
+            }.first()
+        } catch (e: Exception) {
+            android.util.Log.e("UserSessionManager", "Failed to get user ID from DataStore: ${e.message}")
+            e.printStackTrace()
+            null
+        }
     }
     
     /**
@@ -52,10 +58,16 @@ object UserSessionManager {
      * This is the Room database User ID (Long) stored as String
      */
     suspend fun getRoomUserIdFromDataStore(dataStore: DataStore<Preferences>): Long? {
-        val roomUserIdString = dataStore.data.map { preferences ->
-            preferences[ROOM_USER_ID_KEY]
-        }.first()
-        return roomUserIdString?.toLongOrNull()
+        return try {
+            val roomUserIdString = dataStore.data.map { preferences ->
+                preferences[ROOM_USER_ID_KEY]
+            }.first()
+            roomUserIdString?.toLongOrNull()
+        } catch (e: Exception) {
+            android.util.Log.e("UserSessionManager", "Failed to get Room user ID from DataStore: ${e.message}")
+            e.printStackTrace()
+            null
+        }
     }
     
     /**
